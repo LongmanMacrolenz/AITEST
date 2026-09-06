@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Orchestration Assessment (TPI Engine)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap');
+    body { font-family: 'Pretendard', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center p-4 md:p-8">
+
+  <header class="w-full max-w-4xl mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-6">
+    <div>
+      <span class="text-xs font-bold tracking-widest text-indigo-400 uppercase">Evaluation System v1.0</span>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white">AI 오케스트레이션 역량 평가</h1>
+      <p class="text-sm text-slate-400">지능 자원 배분 효율성 및 책임성 검증 테스트</p>
+    </div>
+    <div class="flex items-center gap-6 bg-slate-900 border border-slate-800 px-5 py-3 rounded-xl">
+      <div>
+        <div class="text-xs text-slate-400">가용 토큰 예산</div>
+        <div id="token-display" class="text-xl font-black text-emerald-400">50,000 <span class="text-xs font-normal text-slate-400">TK</span></div>
+      </div>
+      <div class="w-px h-8 bg-slate-800"></div>
+      <div>
+        <div class="text-xs text-slate-400">소요 시간</div>
+        <div id="timer-display" class="text-xl font-black text-slate-200">00:00</div>
+      </div>
+    </div>
+  </header>
+
+  <main id="app-container" class="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-10 shadow-2xl">
+    
+    <div class="flex justify-between items-center mb-6">
+      <span id="question-phase" class="text-sm font-semibold text-indigo-400 uppercase tracking-wider">Phase 1/3</span>
+      <div class="w-48 bg-slate-800 h-2 rounded-full overflow-hidden">
+        <div id="progress-bar" class="bg-indigo-500 h-full w-1/3 transition-all duration-300"></div>
+      </div>
+    </div>
+
+    <div id="test-content">
+      </div>
+
+    <div class="mt-8 pt-6 border-t border-slate-800 flex justify-end">
+      <button id="next-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
+        다음 단계 평가 →
+      </button>
+    </div>
+  </main>
+
+  <div id="result-view" class="hidden w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-10 text-center shadow-2xl">
+    <span class="text-xs font-bold tracking-widest text-emerald-400 uppercase">Assessment Complete</span>
+    <h2 class="text-3xl font-extrabold text-white mt-1 mb-6">종합 역량 평가 결과서</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="bg-slate-950 p-5 rounded-xl border border-slate-800">
+        <div class="text-xs text-slate-400 mb-1">토큰 생산성 지수 (TPI)</div>
+        <div id="res-tpi" class="text-3xl font-black text-indigo-400">--</div>
+        <div class="text-xs text-slate-500 mt-1">품질 점수 / 토큰 소비율</div>
+      </div>
+      <div class="bg-slate-950 p-5 rounded-xl border border-slate-800">
+        <div class="text-xs text-slate-400 mb-1">잔여 토큰 예산</div>
+        <div id="res-token" class="text-3xl font-black text-emerald-400">--</div>
+        <div class="text-xs text-slate-500 mt-1">예산 절감 최적화 점수</div>
+      </div>
+      <div class="bg-slate-950 p-5 rounded-xl border border-slate-800">
+        <div class="text-xs text-slate-400 mb-1">검증 및 윤리 지수</div>
+        <div id="res-ethics" class="text-3xl font-black text-sky-400">--</div>
+        <div class="text-xs text-slate-500 mt-1">오너십 및 감사 적합도</div>
+      </div>
+    </div>
+
+    <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 text-left mb-8 space-y-3">
+      <h3 class="font-bold text-white text-base">심층 오케스트레이션 피드백</h3>
+      <p id="res-feedback" class="text-sm text-slate-300 leading-relaxed"></p>
+    </div>
+
+    <button onclick="window.location.reload()" class="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
+      테스트 다시 치르기
+    </button>
+  </div>
+
+  <script>
+    // State Management
+    let currentStep = 0;
+    let tokens = 50000;
+    let timerSeconds = 0;
+    let timerInterval = null;
+
+    const userChoices = {
+      pipeline: { step1: '', step2: '', step3: '' },
+      promptChoice: null,
+      auditFound: false,
+      responsibilityAction: null
+    };
+
+    // Timer Implementation
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        timerSeconds++;
+        const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+        const secs = String(timerSeconds % 60).padStart(2, '0');
+        document.getElementById('timer-display').innerText = `${mins}:${secs}`;
+      }, 1000);
+    }
+
+    const testSteps = [
+      {
+        phase: "Phase 1 / 3 : 파이프라인 설계 및 모델 라우팅",
+        title: "대규모 ESG 보고서 분석 파이프라인 구성",
+        desc: "20개 경쟁사의 PDF 총 4,000페이지에서 탄소 배출량 지표를 뽑아내고, 핵심 위험 요인을 전략적으로 추론해야 합니다. 각 단계에 가장 적합한 엔진을 배치하십시오.",
+        render: () => `
+          <div class="space-y-6">
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-400 grid grid-cols-3 gap-2">
+              <div><strong class="text-emerald-400">Flash 3.8:</strong> 저비용/초고속 (소모: 2,000 TK)</div>
+              <div><strong class="text-sky-400">Astra:</strong> 멀티모달·도구연동 (소모: 6,000 TK)</div>
+              <div><strong class="text-purple-400">Fable 5.1:</strong> 초고지능 심층추론 (소모: 18,000 TK)</div>
+            </div>
+
+            <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+              <label class="block text-sm font-semibold mb-1">1단계: 표/그래프 및 정형 데이터 고속 파싱</label>
+              <select id="route-s1" class="w-full bg-slate-900 border border-slate-700 rounded-md p-2.5 text-sm text-slate-200">
+                <option value="">엔진을 선택하세요</option>
+                <option value="flash">Flash 3.8 (경량 텍스트 파싱)</option>
+                <option value="astra">Astra (도구 연동 및 차트 OCR)</option>
+                <option value="fable">Fable 5.1 (심층 추론)</option>
+              </select>
+            </div>
+
+            <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+              <label class="block text-sm font-semibold mb-1">2단계: 정량 데이터 정규화 및 크로스 검증</label>
+              <select id="route-s2" class="w-full bg-slate-900 border border-slate-700 rounded-md p-2.5 text-sm text-slate-200">
+                <option value="">엔진을 선택하세요</option>
+                <option value="flash">Flash 3.8 (단순 연산 및 정렬)</option>
+                <option value="astra">Astra (외부 통계 DB 도구 연동)</option>
+                <option value="fable">Fable 5.1 (심층 추론)</option>
+              </select>
+            </div>
+
+            <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+              <label class="block text-sm font-semibold mb-1">3단계: 비정형 리스크 추론 및 전략 보고서 작성</label>
+              <select id="route-s3" class="w-full bg-slate-900 border border-slate-700 rounded-md p-2.5 text-sm text-slate-200">
+                <option value="">엔진을 선택하세요</option>
+                <option value="flash">Flash 3.8 (텍스트 취합 및 요약)</option>
+                <option value="astra">Astra (멀티모달 시각화)</option>
+                <option value="fable">Fable 5.1 (고지능 종합 의사결정 추론)</option>
+              </select>
+            </div>
+          </div>
+        `
+      },
+      {
+        phase: "Phase 2 / 3 : 프롬프트 압축 및 토큰 밀도",
+        title: "시스템 프롬프트 압축 및 확정성 설계",
+        desc: "2,000 토큰 분량의 비정형 가이드라인을 간소화하여 최소 토큰으로 100% JSON 출력을 뽑아내야 합니다. 어떤 프롬프팅 구조를 채택하시겠습니까?",
+        render: () => `
+          <div class="space-y-4">
+            <label class="flex items-start gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer hover:border-indigo-500 transition-colors">
+              <input type="radio" name="prompt-strat" value="A" class="mt-1 text-indigo-600">
+              <div>
+                <strong class="block text-sm text-white mb-1">전략 A: 상세 Few-shot 예시 5개 포함 (예상 입력: 1,800 토큰)</strong>
+                <p class="text-xs text-slate-400">모든 예외 케이스를 장황하게 대화형 텍스트로 풀어 설명하여 환각을 방어함.</p>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer hover:border-indigo-500 transition-colors">
+              <input type="radio" name="prompt-strat" value="B" class="mt-1 text-indigo-600">
+              <div>
+                <strong class="block text-sm text-white mb-1">전략 B: XML 스키마 정의 + 엄격한 가드레일 (예상 입력: 350 토큰)</strong>
+                <p class="text-xs text-slate-400">Markdown 대신 정형 XML 태그로 입출력 스키마만 간결히 명시하고 불필요한 페르소나 서술 제거.</p>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer hover:border-indigo-500 transition-colors">
+              <input type="radio" name="prompt-strat" value="C" class="mt-1 text-indigo-600">
+              <div>
+                <strong class="block text-sm text-white mb-1">전략 C: 자연어 자유 질의 (예상 입력: 100 토큰)</strong>
+                <p class="text-xs text-slate-400">"알아서 JSON 형태로 핵심만 요약해줘"와 같은 극단적 축약 명령문 전송.</p>
+              </div>
+            </label>
+          </div>
+        `
+      },
+      {
+        phase: "Phase 3 / 3 : 할루시네이션 검증 및 데이터 윤리",
+        title: "AI 산출물 결함 감사 및 오너십 태도",
+        desc: "Astra 엔진이 생성한 투자 분석 메모입니다. 수치 및 사실관계 오류를 찾아내고 문제 발생 시 대처 방식을 선택하십시오.",
+        render: () => `
+          <div class="space-y-6">
+            <div class="bg-slate-950 p-4 rounded-xl border border-amber-900/40 text-xs font-mono text-slate-300 leading-relaxed">
+              [분석 메모] 2025년 Q3 매출액은 1,200억 원(YoY +15%)이며, 영업이익률은 12%를 기록함.<br>
+              <strong>*오류 유의:</strong> 본 문서는 경쟁사 A사의 비공개 특허 침해 합의금 추정치(내부 추산 50억)를 출처 없이 확정적 수치로 인용하여 영업외수익에 산입함.
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold mb-2">1. 위 생성물에서 치명적인 문제를 지목하십시오.</label>
+              <select id="audit-choice" class="w-full bg-slate-950 border border-slate-700 rounded-md p-2.5 text-sm text-slate-200">
+                <option value="">결함을 선택하세요</option>
+                <option value="none">수치상 완벽하여 결함 없음</option>
+                <option value="calc">YoY 계산 오류</option>
+                <option value="leak">출처 불분명한 내부 추정치 무단 확정 인용 및 라이선스 윤리 결함</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold mb-2">2. 위 결함이 포함된 보고서가 임원진에 보고되었을 때 당신의 조치는?</label>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 text-xs text-slate-300">
+                  <input type="radio" name="resp-strat" value="blame"> "Astra 모델의 고유 할루시네이션 현상이므로 엔진을 변경해야 한다고 보고한다."
+                </label>
+                <label class="flex items-center gap-2 text-xs text-slate-300">
+                  <input type="radio" name="resp-strat" value="own"> "검증 프로세스 누락을 즉시 인정하고, 수정본 발행 및 재발 방지 프롬프트 가드레일을 구축한다."
+                </label>
+              </div>
+            </div>
+          </div>
+        `
+      }
+    ];
+
+    function renderCurrentStep() {
+      const step = testSteps[currentStep];
+      document.getElementById('question-phase').innerText = step.phase;
+      document.getElementById('progress-bar').style.width = `${((currentStep + 1) / testSteps.length) * 100}%`;
+
+      document.getElementById('test-content').innerHTML = `
+        <h2 class="text-xl font-bold text-white mb-2">${step.title}</h2>
+        <p class="text-sm text-slate-400 mb-6">${step.desc}</p>
+        ${step.render()}
+      `;
+
+      if (currentStep === testSteps.length - 1) {
+        document.getElementById('next-btn').innerText = "최종 평가서 발행";
+      }
+    }
+
+    document.getElementById('next-btn').addEventListener('click', () => {
+      // Input Validation & Processing per Step
+      if (currentStep === 0) {
+        const s1 = document.getElementById('route-s1').value;
+        const s2 = document.getElementById('route-s2').value;
+        const s3 = document.getElementById('route-s3').value;
+        if (!s1 || !s2 || !s3) return alert('모든 단계의 엔진을 선택해주세요.');
+
+        userChoices.pipeline = { s1, s2, s3 };
+        
+        // Deduct Tokens
+        const costMap = { flash: 2000, astra: 6000, fable: 18000 };
+        tokens -= (costMap[s1] + costMap[s2] + costMap[s3]);
+      } else if (currentStep === 1) {
+        const checked = document.querySelector('input[name="prompt-strat"]:checked');
+        if (!checked) return alert('프롬프트 전략을 선택해주세요.');
+        userChoices.promptChoice = checked.value;
+
+        if (checked.value === 'A') tokens -= 7000;
+        if (checked.value === 'B') tokens -= 1400;
+        if (checked.value === 'C') tokens -= 500;
+      } else if (currentStep === 2) {
+        const audit = document.getElementById('audit-choice').value;
+        const resp = document.querySelector('input[name="resp-strat"]:checked');
+        if (!audit || !resp) return alert('모든 질문에 답해주세요.');
+
+        userChoices.auditChoice = audit;
+        userChoices.respChoice = resp.value;
+        tokens -= 3000; // Verification run cost
+      }
+
+      document.getElementById('token-display').innerText = `${tokens.toLocaleString()} TK`;
+
+      currentStep++;
+      if (currentStep < testSteps.length) {
+        renderCurrentStep();
+      } else {
+        clearInterval(timerInterval);
+        showResults();
+      }
+    });
+
+    function showResults() {
+      document.getElementById('app-container').classList.add('hidden');
+      document.getElementById('result-view').classList.remove('hidden');
+
+      let qualityScore = 0;
+      let ethicsScore = 0;
+
+      // 1. Pipeline Routing Evaluation
+      // Ideal: s1 -> astra (OCR), s2 -> flash (normalization), s3 -> fable (deep reasoning)
+      if (userChoices.pipeline.s1 === 'astra') qualityScore += 30;
+      if (userChoices.pipeline.s2 === 'flash') qualityScore += 30;
+      if (userChoices.pipeline.s3 === 'fable') qualityScore += 40;
+
+      // 2. Prompt Compression
+      if (userChoices.promptChoice === 'B') qualityScore += 30;
+      else if (userChoices.promptChoice === 'A') qualityScore += 15;
+
+      // 3. Hallucination & Ethics
+      if (userChoices.auditChoice === 'leak') ethicsScore += 50;
+      if (userChoices.respChoice === 'own') ethicsScore += 50;
+
+      // TPI Calculation
+      const tokenRatio = Math.max(0.1, (tokens / 50000));
+      const tpi = Math.round((qualityScore * tokenRatio) * (100 / Math.max(20, timerSeconds)));
+
+      document.getElementById('res-tpi').innerText = tpi;
+      document.getElementById('res-token').innerText = `${tokens.toLocaleString()} TK`;
+      document.getElementById('res-ethics').innerText = `${ethicsScore}/100`;
+
+      // Feedback generation
+      let feedback = "";
+      if (userChoices.pipeline.s3 === 'fable' && userChoices.promptChoice === 'B') {
+        feedback += "고난도 추론 영역에 Fable 5.1을 적절히 집중시키고 XML 구조화를 통해 토큰을 효율적으로 절약했습니다. 지능 자원 분배 감각이 매우 뛰어납니다. ";
+      } else {
+        feedback += "단순 연산 또는 요약 단계에 고비용 엔진을 투입하여 토큰 낭비가 발생했거나, 프롬프트 압축 구조가 불안정합니다. ";
+      }
+
+      if (ethicsScore === 100) {
+        feedback += "데이터 출처 결함에 대한 비판적 감사 능력과 결과물에 대한 확실한 오너십을 갖추고 있어 실무 배치 시 리스크가 매우 낮습니다.";
+      } else {
+        feedback += "AI 산출물의 교묘한 결함을 검증 없이 수용하거나 문제 발생 시 모델 탓으로 돌리는 경향이 있어 보완이 필요합니다.";
+      }
+
+      document.getElementById('res-feedback').innerText = feedback;
+    }
+
+    // Initialize
+    startTimer();
+    renderCurrentStep();
+  </script>
+</body>
+</html>
